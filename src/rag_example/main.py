@@ -1,5 +1,3 @@
-from rag_example.vector import embed, rerank, RankedDocument, vector_db_client, collection
-
 def main():
     # embeddings = embed(["hello_world"])
     # print(embeddings)
@@ -10,16 +8,17 @@ def main():
     # TODO: Chunk documents from markdowns
 
     # TODO: Insert in to chromadb
-    print(collection().upsert(
-        ids = ["1", "2"],
-        documents = ["hello world", "I am a cat"]
-    ))
+    # print(collection().upsert(
+    #     ids = ["1", "2"],
+    #     documents = ["hello world", "I am a cat"]
+    # ))
 
-    print(collection().count())
+    # print(collection().count())
 
-    print(collection().query(
-        query_texts = "I'm a dog"
-    ))
+    # print(collection().query(
+    #     query_texts = "I'm a dog"
+    # ))
+
     pass
 
 

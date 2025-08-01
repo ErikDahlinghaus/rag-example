@@ -1,23 +1,26 @@
-from functools import lru_cache
 from dataclasses import dataclass
-from FlagEmbedding import BGEM3FlagModel, FlagReranker
-from chromadb import PersistentClient, Documents, Embeddings, EmbeddingFunction
+from functools import lru_cache
+
+from FlagEmbedding import BGEM3FlagModel, FlagReranker  # type: ignore[import-untyped]
+
+from rag_example.settings import settings
 
 
 @lru_cache(maxsize=1)
-def embedding_model() -> BGEM3FlagModel:
-    model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+def get_embedding_model() -> BGEM3FlagModel:
+    model = BGEM3FlagModel(settings.EMBEDDING_MODEL, use_fp16=True)
     return model
 
 
-def embed(documents: str | list[str]) -> list[float] | list[list[float]]:
-    dense_vectors = embedding_model().encode(documents)['dense_vecs']
+def embed(documents: list[str]) -> list[list[float]]:
+    vectors = get_embedding_model().encode(documents)
+    dense_vectors: list[list[float]] = vectors["dense_vecs"]
     return dense_vectors
 
 
 @lru_cache(maxsize=1)
-def reranker_model() -> FlagReranker:
-    reranker = FlagReranker('BAAI/bge-reranker-v2-m3', use_fp16=True)
+def get_reranker_model() -> FlagReranker:
+    reranker = FlagReranker(settings.RERANKER_MODEL, use_fp16=True)
     return reranker
 
 
@@ -26,29 +29,21 @@ class RankedDocument:
     document: str
     score: float
 
+
+class RerankError(Exception):
+    pass
+
+
 def rerank(query: str, documents: list[str]) -> list[RankedDocument]:
-    scores = reranker_model().compute_score([[query, document] for document in documents])
-    ranked_docs = [RankedDocument(document, score) for document, score in zip(documents, scores)]
-    return sorted(ranked_docs, key=lambda x: x.score, reverse=True)
-
-
-@lru_cache(maxsize=1)
-def vector_db_client():
-    client = PersistentClient(path="./chroma")
-    client.heartbeat()
-    return client
-
-
-class ChromaDBEmbeddingFunction(EmbeddingFunction):
-    def __call__(self, input: Documents) -> Embeddings:
-        vectors = embed(input)
-        return vectors
-    
-
-@lru_cache
-def collection(name: str = "documents"):
-    collection = vector_db_client().get_or_create_collection(
-        name=name,
-        embedding_function=ChromaDBEmbeddingFunction()
+    scores = get_reranker_model().compute_score(
+        [(query, document) for document in documents]
     )
-    return collection
+
+    if not scores:
+        raise RerankError("scores was None")
+
+    ranked_docs = [
+        RankedDocument(document, score)
+        for document, score in zip(documents, scores, strict=False)
+    ]
+    return sorted(ranked_docs, key=lambda x: x.score, reverse=True)
